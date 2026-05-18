@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Portal - Smart Parking</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <nav
+        style="padding: 1.5rem 2rem; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-weight: 800; font-size: 1.25rem;">ProPark<span style="color: var(--accent-primary)">AI</span>
+        </div>
+        <a href="index.html" style="color: var(--text-secondary); font-size: 0.9rem;"><i
+                class="fa-solid fa-arrow-left"></i> Home</a>
+    </nav>
+
+    <div class="container">
+        <header style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: end;">
+            <div>
+                <h1 class="title" style="font-size: 2rem;">Find a Spot</h1>
+                <p class="subtitle" style="margin-bottom: 0;">Live parking availability</p>
+            </div>
+            <div class="glass-panel" style="padding: 0.75rem 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+                <div style="width: 10px; height: 10px; background: var(--status-free); border-radius: 50%;"></div>
+                <span><span id="free-count" style="font-weight: 700; font-size: 1.2rem;">--</span> Available</span>
+            </div>
+        </header>
+
+        <div id="slot-container" class="slot-grid">
+            <!-- Slots injected here by JS -->
+            <div class="glass-panel" style="grid-column: 1/-1; text-align: center;">Loading slots...</div>
+        </div>
+    </div>
+
+    <!-- Reserve Modal -->
+    <div class="modal-overlay" id="reserve-modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 1.5rem;">Reserve Slot <span id="modal-slot-id"
+                    style="color: var(--accent-primary)">#</span></h2>
+
+            <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" id="res-name" class="form-input" placeholder="John Doe">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Vehicle Plate</label>
+                <input type="text" id="res-plate" class="form-input" placeholder="ABC-123">
+            </div>
+
+            <div class="form-actions">
+                <button class="btn" style="background: transparent; color: var(--text-secondary);"
+                    onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmReservation()">Confirm Booking</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Page specific init
+        document.addEventListener('DOMContentLoaded', () => {
+            initUserPortal();
+        });
+    </script>
+</body>
+
+</html>

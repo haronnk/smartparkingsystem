@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Smart Parking</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <nav
+        style="padding: 1.5rem 2rem; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-weight: 800; font-size: 1.25rem;">ProPark<span
+                style="color: var(--accent-secondary)">Admin</span></div>
+        <a href="index.html" style="color: var(--text-secondary); font-size: 0.9rem;"><i
+                class="fa-solid fa-arrow-left"></i> Home</a>
+    </nav>
+
+    <div class="container">
+        <h1 class="title" style="font-size: 2rem; margin-bottom: 2rem;">System Overview</h1>
+
+        <div class="stats-bar">
+            <div class="glass-panel stat-card">
+                <div class="stat-value" id="stat-total">--</div>
+                <div class="stat-label">Total Slots</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <div class="stat-value" id="stat-available" style="color: var(--status-free)">--</div>
+                <div class="stat-label">Available</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <div class="stat-value" id="stat-occupied" style="color: var(--status-occupied)">--</div>
+                <div class="stat-label">Occupied</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <div class="stat-value" id="stat-reserved" style="color: var(--status-reserved)">--</div>
+                <div class="stat-label">Reserved</div>
+            </div>
+        </div>
+
+        <div class="glass-panel">
+            <h2 style="margin-bottom: 1rem;">Active Reservations</h2>
+            <div style="overflow-x: auto;">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Slot</th>
+                            <th>Name</th>
+                            <th>Plate</th>
+                            <th>Time</th>
+                            <th>Status (Live)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reservations-table">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+                <div id="no-res-msg"
+                    style="padding: 2rem; text-align: center; color: var(--text-secondary); display: none;">
+                    No active reservations
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem;">
+            <h2 style="margin-bottom: 1rem;">Live Map View</h2>
+            <div id="slot-container" class="slot-grid"
+                style="grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));">
+                <!-- Mini view -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initAdminPortal();
+        });
+    </script>
+</body>
+
+</html>
