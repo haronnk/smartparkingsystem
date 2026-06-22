@@ -1,5 +1,6 @@
 import os
 import json
+import pickle
 import time
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -8,6 +9,7 @@ from flask_cors import CORS
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend'))
 STATE_FILE = os.path.join(os.path.dirname(__file__), 'state.json')
 RESERVATIONS_FILE = os.path.join(os.path.dirname(__file__), 'reservations.json')
+SLOTS_FILE = os.path.join(os.path.dirname(__file__), 'parking_slots.pkl')
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
 CORS(app)
@@ -29,6 +31,29 @@ def save_json(filepath, data):
     except Exception as e:
         print(f"Error saving {filepath}: {e}")
 
+def get_expected_slot_count():
+    try:
+        with open(SLOTS_FILE, 'rb') as f:
+            return len(pickle.load(f))
+    except Exception as e:
+        print(f"Error loading {SLOTS_FILE}: {e}")
+        return 12
+
+def build_free_slots(count):
+    return [{"id": i + 1, "status": "FREE"} for i in range(count)]
+
+def get_normalized_slots():
+    expected_count = get_expected_slot_count()
+    ai_state = load_json(STATE_FILE, {"slots": []})
+    slots = ai_state.get("slots", [])
+
+    # If the saved detector state is stale after redrawing parking slots,
+    # fall back to the current slot layout instead of showing old slot IDs.
+    if len(slots) != expected_count:
+        return build_free_slots(expected_count)
+
+    return slots
+
 @app.route('/')
 def serve_index():
     return send_from_directory(app.static_folder, 'index.html')
@@ -39,10 +64,6 @@ def serve_static(path):
 
 @app.route('/api/slots', methods=['GET'])
 def get_slots():
-    # Load AI state (Occupancy)
-    # state.json structure: {"timestamp": ..., "slots": [{"id": 1, "status": "OCCUPIED" | "FREE"}, ...]}
-    ai_state = load_json(STATE_FILE, {"slots": []})
-    
     # Load Reservations
     # reservations.json structure: {"reservations": [{"slot_id": 1, "name": "...", "plate": "...", "time": ...}]}
     res_data = load_json(RESERVATIONS_FILE, {"reservations": []})
@@ -56,11 +77,7 @@ def get_slots():
         return None
 
     combined_slots = []
-    # If state.json is empty/missing, assume 12 slots for demo purposes
-    slots_list = ai_state.get("slots", [])
-    if not slots_list:
-        # Fallback if AI backend isn't running yet
-        slots_list = [{"id": i+1, "status": "FREE"} for i in range(12)]
+    slots_list = get_normalized_slots()
 
     for slot in slots_list:
         slot_id = slot['id']
@@ -156,13 +173,12 @@ def cancel_reservation():
 
 @app.route('/api/admin/stats', methods=['GET'])
 def get_stats():
-    ai_state = load_json(STATE_FILE, {"slots": []})
     res_data = load_json(RESERVATIONS_FILE, {"reservations": []})
     
-    slots = ai_state.get("slots", [])
+    slots = get_normalized_slots()
     reservations = res_data.get("reservations", [])
     
-    total_slots = len(slots) if slots else 12
+    total_slots = len(slots)
     occupied_count = sum(1 for s in slots if s.get("status") == "OCCUPIED")
     reserved_count = len(reservations)
     # Note: A slot can be both reserved and occupied (customer arrived).
@@ -180,7 +196,7 @@ def get_stats():
             if s['status'] != "OCCUPIED" and s['id'] not in reserved_slot_ids:
                 available_count += 1
     else:
-        available_count = total_slots - reserved_count # Estimate if no video running
+        available_count = total_slots - reserved_count # Estimate if the detector has not run yet
     
     return jsonify({
         "total": total_slots,

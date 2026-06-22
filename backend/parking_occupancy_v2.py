@@ -1,34 +1,23 @@
 import cv2
+import json
+import os
 import pickle
+import time
+
 import numpy as np
 import torch
-import json
-import time
-import os
 from ultralytics import YOLO
-import json
-import os
-
-def write_state(slot_occupied):
-    os.makedirs("backend", exist_ok=True)
-    state = {
-        "slots": [
-            {"id": i + 1, "status": "occupied" if occ else "free"}
-            for i, occ in enumerate(slot_occupied)
-        ]
-    }
-    with open("backend/state.json", "w") as f:
-        json.dump(state, f)
 # =========================================================
 # CONFIG
 # =========================================================
-VIDEO_PATH = "videos/parking3.mp4"
+IMAGE_PATH = "images/img1.jpeg"
 SLOTS_FILE = "backend/parking_slots.pkl"
 MODEL_PATH = "best.pt"                 # or "yolov8n.pt"
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+ANNOTATED_IMAGE_PATH = os.path.join(BASE_DIR, "frontend", "latest_parking_view.jpg")
 
 CONF_THRESHOLD = 0.25
 MAX_DET = 300
-FRAME_SKIP = 2                         # higher = slower playback
 
 STATE_FILE = "backend/state.json"
 
@@ -51,6 +40,11 @@ def write_state(slot_occupied):
     with open(STATE_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
+
+def save_annotated_image(frame):
+    os.makedirs(os.path.dirname(ANNOTATED_IMAGE_PATH), exist_ok=True)
+    cv2.imwrite(ANNOTATED_IMAGE_PATH, frame)
+
 # =========================================================
 # LOAD PARKING SLOTS
 # =========================================================
@@ -70,13 +64,11 @@ model = YOLO(MODEL_PATH)
 model.to(device)
 
 # =========================================================
-# VIDEO CAPTURE
+# IMAGE LOADING
 # =========================================================
-cap = cv2.VideoCapture(VIDEO_PATH)
-if not cap.isOpened():
-    raise RuntimeError(f"❌ Cannot open video: {VIDEO_PATH}")
-
-frame_count = 0
+frame = cv2.imread(IMAGE_PATH)
+if frame is None:
+    raise RuntimeError(f"Cannot open image: {IMAGE_PATH}")
 
 # =========================================================
 # HELPER
@@ -84,81 +76,92 @@ frame_count = 0
 def point_in_polygon(point, polygon):
     return cv2.pointPolygonTest(polygon, point, False) >= 0
 
-# =========================================================
-# MAIN LOOP
-# =========================================================
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+def box_overlaps_polygon(box, polygon, image_shape, min_overlap_ratio=0.03):
+    x1, y1, x2, y2 = box
+    h, w = image_shape[:2]
+    x1 = max(0, min(w - 1, x1))
+    y1 = max(0, min(h - 1, y1))
+    x2 = max(0, min(w - 1, x2))
+    y2 = max(0, min(h - 1, y2))
 
-    frame_count += 1
-    if frame_count % FRAME_SKIP != 0:
+    if x2 <= x1 or y2 <= y1:
+        return False
+
+    slot_mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.fillPoly(slot_mask, [polygon], 1)
+
+    box_mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.rectangle(box_mask, (x1, y1), (x2, y2), 1, -1)
+
+    overlap = cv2.bitwise_and(slot_mask, box_mask)
+    overlap_area = int(np.count_nonzero(overlap))
+    slot_area = int(np.count_nonzero(slot_mask))
+
+    if slot_area == 0:
+        return False
+
+    return (overlap_area / slot_area) >= min_overlap_ratio
+
+# =========================================================
+# RUN INFERENCE ON STILL IMAGE
+# =========================================================
+slot_occupied = [False] * num_slots
+
+results = model(
+    frame,
+    conf=CONF_THRESHOLD,
+    max_det=MAX_DET,
+    verbose=False
+)
+
+for r in results:
+    if r.boxes is None:
         continue
 
-    slot_occupied = [False] * num_slots
+    for box in r.boxes:
+        x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-    # ---------------- YOLO INFERENCE ----------------
-    results = model(
-        frame,
-        conf=CONF_THRESHOLD,
-        max_det=MAX_DET,
-        verbose=False
-    )
+        # Keep the visual marker, but use overlap for occupancy.
+        cx = int((x1 + x2) / 2)
+        cy = int(y2 - 5)
 
-    for r in results:
-        if r.boxes is None:
-            continue
+        cv2.circle(frame, (cx, cy), 4, (255, 0, 0), -1)
 
-        for box in r.boxes:
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
+        for i, slot in enumerate(parking_slots):
+            poly = np.array(slot, np.int32)
+            if box_overlaps_polygon((x1, y1, x2, y2), poly, frame.shape):
+                slot_occupied[i] = True
 
-            # bottom-center logic (UNCHANGED)
-            cx = int((x1 + x2) / 2)
-            cy = int(y2 - 5)
+free = 0
+occupied = 0
 
-            cv2.circle(frame, (cx, cy), 4, (255, 0, 0), -1)
+for i, slot in enumerate(parking_slots):
+    poly = np.array(slot, np.int32)
 
-            for i, slot in enumerate(parking_slots):
-                poly = np.array(slot, np.int32)
-                if point_in_polygon((cx, cy), poly):
-                    slot_occupied[i] = True
+    if slot_occupied[i]:
+        color = (0, 0, 255)
+        occupied += 1
+    else:
+        color = (0, 255, 0)
+        free += 1
 
-    # ---------------- DRAW SLOTS ----------------
-    free = 0
-    occupied = 0
+    cv2.polylines(frame, [poly], True, color, 2)
 
-    for i, slot in enumerate(parking_slots):
-        poly = np.array(slot, np.int32)
+write_state(slot_occupied)
 
-        if slot_occupied[i]:
-            color = (0, 0, 255)
-            occupied += 1
-        else:
-            color = (0, 255, 0)
-            free += 1
+overlay = frame.copy()
+cv2.rectangle(overlay, (10, 10), (420, 120), (0, 0, 0), -1)
+frame = cv2.addWeighted(overlay, 0.7, frame, 0.3, 0)
 
-        cv2.polylines(frame, [poly], True, color, 2)
+cv2.putText(frame, f"FREE: {free}", (30, 55),
+            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
 
-    # ✅ EXPORT STATE (SAFE ADDITION)
-    write_state(slot_occupied)
+cv2.putText(frame, f"OCCUPIED: {occupied}", (30, 100),
+            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
 
-    # ---------------- UI PANEL ----------------
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (10, 10), (420, 120), (0, 0, 0), -1)
-    frame = cv2.addWeighted(overlay, 0.7, frame, 0.3, 0)
-
-    cv2.putText(frame, f"FREE: {free}", (30, 55),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
-
-    cv2.putText(frame, f"OCCUPIED: {occupied}", (30, 100),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
-    write_state(slot_occupied)
-    # ---------------- DISPLAY ----------------
-    cv2.imshow("Smart Parking – AI Backend", frame)
-
-    if cv2.waitKey(30) & 0xFF == ord("q"):
-        break
-
-cap.release()
+save_annotated_image(frame)
+cv2.imshow("Smart Parking - AI Backend", frame)
+print(f"Processed still image: {IMAGE_PATH}")
+print("Press any key in the preview window to close.")
+cv2.waitKey(0)
 cv2.destroyAllWindows()

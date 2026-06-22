@@ -4,13 +4,13 @@ Smart Parking System is a computer-vision parking monitor with a simple web dash
 
 The project combines:
 
-- A YOLO-based occupancy detector that reads parking-lot video and marks slots as `FREE` or `OCCUPIED`
+- A YOLO-based occupancy detector that reads a parking-lot image and marks slots as `FREE` or `OCCUPIED`
 - A Flask backend that serves live slot data and reservation APIs
 - A static frontend with a driver portal and an admin dashboard
 
 ## Features
 
-- Live parking-slot occupancy from video inference
+- Live parking-slot occupancy from image inference
 - Driver reservation flow
 - Admin dashboard with slot counts and active reservations
 - Local JSON state storage for occupancy and bookings
@@ -31,7 +31,7 @@ smart-parking-4/
 │   ├── admin.html
 │   ├── app.js
 │   └── style.css
-├── videos/
+├── images/
 ├── best.pt
 ├── train_aerial.py
 └── train_forced_ckpt.py
@@ -49,7 +49,7 @@ smart-parking-4/
 
 ## How It Works
 
-1. `backend/parking_occupancy_v2.py` loads the trained YOLO model and a parking video.
+1. `backend/parking_occupancy_v2.py` loads the trained YOLO model and a parking image.
 2. The detector checks whether each configured polygon slot contains a car.
 3. Occupancy is written to `backend/state.json`.
 4. `backend/app.py` combines live occupancy with reservation data from `backend/reservations.json`.
@@ -86,6 +86,8 @@ Open:
 python backend/parking_occupancy_v2.py
 ```
 
+Before running it, place your parking photo at `images/parking3.jpg` or update `IMAGE_PATH` in the scripts.
+
 Note: the detector currently uses `cv2.imshow(...)`, so it needs a desktop session with GUI access.
 
 ## API Endpoints
@@ -106,3 +108,13 @@ Note: the detector currently uses `cv2.imshow(...)`, so it needs a desktop sessi
 - Make the AI backend run headless without `cv2.imshow`
 - Add authentication for admin features
 - Add a `requirements.txt` file for repeatable setup
+
+
+new_ ----------------
+
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+py -m pip install flask flask-cors opencv-python ultralytics torch numpy
+py backend\app.py
+
+py backend\parking_occupancy_v2.py
